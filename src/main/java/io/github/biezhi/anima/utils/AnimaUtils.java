@@ -106,9 +106,10 @@ public class AnimaUtils {
                         } else {
                             if (enumMapping.value().equals(EnumMapping.TO_STRING)) {
                                 columnValueList.add(value.toString());
-                            }
-                            if (enumMapping.value().equals(EnumMapping.ORDINAL)) {
+                            } else if (enumMapping.value().equals(EnumMapping.ORDINAL)) {
                                 columnValueList.add(((Enum) value).ordinal());
+                            } else {
+                                columnValueList.add(invokeMethod(value, enumMapping.value(), EMPTY_ARG));
                             }
                         }
                     } else {
