@@ -17,7 +17,6 @@ package io.github.biezhi.anima.utils;
 
 import com.blade.reflectasm.MethodAccess;
 import io.github.biezhi.anima.Model;
-import io.github.biezhi.anima.annotation.EnumMapping;
 import io.github.biezhi.anima.core.AnimaCache;
 import io.github.biezhi.anima.exception.AnimaException;
 import lombok.AccessLevel;
@@ -25,16 +24,15 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static io.github.biezhi.anima.core.AnimaCache.METHOD_ACCESS_MAP;
-import static io.github.biezhi.anima.core.AnimaCache.isIgnore;
+import static io.github.biezhi.anima.core.AnimaCache.*;
 
 /**
  * Utility class for composing SQL statements
@@ -64,8 +62,9 @@ public class AnimaUtils {
      * @return
      */
     public static String toCamelName(String value) {
-        String[]     partOfNames = value.split("_");
-        StringBuffer sb          = new StringBuffer(partOfNames[0]);
+        String[] partOfNames = value.split("_");
+
+        StringBuilder sb = new StringBuilder(partOfNames[0]);
         for (int i = 1; i < partOfNames.length; i++) {
             sb.append(partOfNames[i].substring(0, 1).toUpperCase());
             sb.append(partOfNames[i].substring(1));
@@ -95,29 +94,16 @@ public class AnimaUtils {
 
     public static <T extends Model> List<Object> toColumnValues(T model, boolean allowNull) {
         List<Object> columnValueList = new ArrayList<>();
-        for (Field field : AnimaCache.computeModelFields(model.getClass())) {
+        for (Field field : computeModelFields(model.getClass())) {
             try {
                 Object value = invokeMethod(model, AnimaCache.getGetterName(field.getName()), EMPTY_ARG);
-                if (null != value) {
-                    if (value instanceof Enum) {
-                        EnumMapping enumMapping = field.getAnnotation(EnumMapping.class);
-                        if (null == enumMapping) {
-                            columnValueList.add(value.toString());
-                        } else {
-                            if (enumMapping.value().equals(EnumMapping.TO_STRING)) {
-                                columnValueList.add(value.toString());
-                            } else if (enumMapping.value().equals(EnumMapping.ORDINAL)) {
-                                columnValueList.add(((Enum) value).ordinal());
-                            } else {
-                                columnValueList.add(invokeMethod(value, enumMapping.value(), EMPTY_ARG));
-                            }
-                        }
-                    } else {
-                        columnValueList.add(value);
+                if (null == value) {
+                    if (allowNull) {
+                        columnValueList.add(null);
                     }
-                } else if (allowNull) {
-                    columnValueList.add(null);
+                    continue;
                 }
+                columnValueList.add(value);
             } catch (IllegalArgumentException e) {
                 throw new AnimaException("illegal argument or Access:", e);
             }
@@ -127,7 +113,7 @@ public class AnimaUtils {
 
     public static <T extends Model> String buildColumns(List<String> excludedColumns, Class<T> modelClass) {
         StringBuilder sql = new StringBuilder();
-        for (Field field : AnimaCache.computeModelFields(modelClass)) {
+        for (Field field : computeModelFields(modelClass)) {
             String columnName = AnimaCache.getColumnName(field);
             if (!isIgnore(field) && !excludedColumns.contains(columnName)) {
                 sql.append(columnName).append(',');
@@ -158,10 +144,8 @@ public class AnimaUtils {
                 }
                 SerializedLambda serializedLambda = (SerializedLambda) replacement;
                 return AnimaCache.getLambdaColumnName(serializedLambda);
-            } catch (NoSuchMethodException e) {
-                // do nothing
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                break;
+            } catch (Exception e) {
+                throw new AnimaException("get lambda column name fail", e);
             }
         }
         return null;
@@ -178,10 +162,8 @@ public class AnimaUtils {
                 }
                 SerializedLambda serializedLambda = (SerializedLambda) replacement;
                 return AnimaCache.getLambdaFieldName(serializedLambda);
-            } catch (NoSuchMethodException e) {
-                // do nothing
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                break;
+            } catch (Exception e) {
+                throw new AnimaException("get lambda column name fail", e);
             }
         }
         return null;
@@ -219,7 +201,7 @@ public class AnimaUtils {
      * @return array
      */
     public static <T> T[] toArray(List<T> list) {
-        T[] toR = (T[]) java.lang.reflect.Array.newInstance(list.get(0).getClass(), list.size());
+        T[] toR = (T[]) Array.newInstance(list.get(0).getClass(), list.size());
         for (int i = 0; i < list.size(); i++) {
             toR[i] = list.get(i);
         }
